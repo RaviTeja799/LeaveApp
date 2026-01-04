@@ -1,78 +1,45 @@
-// 1. Move dotenv to the top using import syntax
 import 'dotenv/config';
-
-// 2. Your other imports
 import { v1 as uuidv1 } from "uuid";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { DefaultAzureCredential } from "@azure/identity";
+import fs from 'fs';
 
 async function main() {
   try {
-    console.log("Azure Blob storage v12 - JavaScript quickstart sample");
+    console.log("Azure Blob storage v12 - Uploading Voice Note");
     const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
     if (!accountName) throw Error('Azure Storage accountName not found');
+
     const blobServiceClient = new BlobServiceClient(
       `https://${accountName}.blob.core.windows.net`,
       new DefaultAzureCredential()
     );
-    console.log(`Connected to storage account: ${accountName}`);
-    // Get a reference to a container
-    const containerName = 'voicemessages';
+    const containerName = 'leave-voice-notes';
     const containerClient = blobServiceClient.getContainerClient(containerName);
-    if (!containerName) {
-      // Create the container
-      console.log('\nCreating container...');
-      console.log('\t', containerName);
-      const createContainerResponse = await containerClient.create();
-      console.log(
-        `Container was created successfully.\n\trequestId:${createContainerResponse.requestId}\n\tURL: ${containerClient.url}`
-      );
+    // Check if container exists, create if not
+    const exists = await containerClient.exists();
+    if (!exists) {
+      console.log(`\nCreating container: ${containerName}`);
+      await containerClient.create();
     }
-    else {
-      console.log(`Using existing container: ${containerName}`);
-    }
-    // Get a block blob client
-    const blobName = 'quickstart' + uuidv1() + '.txt';
-    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-    // Display blob name and url
-    console.log(
-      `\nUploading to Azure storage as blob\n\tname: ${blobName}:\n\tURL: ${blockBlobClient.url}`
-    );
-    // Upload data to the blob
-    const data = 'Hello, World!';
-    const uploadBlobResponse = await blockBlobClient.upload(data, data.length);
-    console.log(
-      `Blob was uploaded successfully. requestId: ${uploadBlobResponse.requestId}`
-    );
-    const downloadBlockBlobResponse = await blockBlobClient.download(0);
-    console.log('\nDownloaded blob content...');
-    console.log(
-      '\t',
-      await streamToText(downloadBlockBlobResponse.readableStreamBody)
-    );
-    // Delete container
-    console.log('\nDeleting container...');
+    const facultyId = 'faculty-12345'; // Example faculty ID
+    const applicationId = uuidv1();
+    const blobName = `${facultyId}/${applicationId}.m4a`;
 
-    const deleteContainerResponse = await containerClient.delete();
-    console.log(
-      'Container was deleted successfully. requestId: ',
-      deleteContainerResponse.requestId
-    );
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    const filePath = "message.m4a"; // Sample local file path
+    const data = fs.readFileSync(filePath);
+    console.log(`\nUploading to Azure storage...\n\tPath: ${blobName}`);
+    const uploadBlobResponse = await blockBlobClient.upload(data, data.length);
+    console.log(`Upload successful. RequestId: ${uploadBlobResponse.requestId}`);
+    // This is the URL you will save to Supabase
+    console.log(`\nFile URL for Supabase voice_blob_name: ${blockBlobClient.url}`);
+
   } catch (error) {
-    console.error("Error uploading blob:", error.message);
+    console.error("Error:", error.message);
   }
 }
 
 main()
   .then(() => console.log("Done"))
   .catch((ex) => console.error(ex.message));
-
-// Convert stream to text
-async function streamToText(readable) {
-  readable.setEncoding('utf8');
-  let data = '';
-  for await (const chunk of readable) {
-    data += chunk;
-  }
-  return data;
-}
